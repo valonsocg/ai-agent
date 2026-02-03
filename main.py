@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from prompts import system_prompt
-from call_function import available_functions
+from call_function import available_functions, call_function
 
 
 
@@ -24,7 +24,11 @@ def main():
     if args.verbose:
         print(f"User prompt: {args.user_prompt}")
     
-    generate_content(client, messages, args.verbose)
+    for _ in range(20):
+        response = generate_content(client, messages, args.verbose)  
+        if response.candidates:
+            for candidate in response.candidates:
+                messages.append(candidate.content)   
 
 def generate_content(client, messages, verbose):    
     response = client.models.generate_content(
@@ -41,15 +45,26 @@ def generate_content(client, messages, verbose):
     if verbose:
         print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
         print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
-        
+    
+    function_results = []    
     function_calls = response.function_calls   
     if function_calls != None:
         for function_call in function_calls:
-            print(f"Calling function: {function_call.name}({function_call.args})")
+            function_call_result = call_function(function_call)
+            if not function_call_result.parts:
+                raise Exception("no parts in function")
+            if function_call_result.parts[0].function_response == None:
+                raise Exception("no function response")
+            if function_call_result.parts[0].function_response.response == None:
+                raise Exception("no actual function response")
+            function_results.append(function_call_result.parts[0])
+            if verbose:
+                print(f"-> {function_call_result.parts[0].function_response.response}")
     else:
         print("Response:")
         print(response.text)
     
+  
 
 if __name__ == "__main__":
     main()
