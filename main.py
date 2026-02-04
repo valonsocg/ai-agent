@@ -1,5 +1,6 @@
 import os
 import argparse
+import sys
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -25,10 +26,16 @@ def main():
         print(f"User prompt: {args.user_prompt}")
     
     for _ in range(20):
-        response = generate_content(client, messages, args.verbose)  
+        response, function_results = generate_content(client, messages, args.verbose)  
         if response.candidates:
             for candidate in response.candidates:
-                messages.append(candidate.content)   
+                messages.append(candidate.content)
+        if function_results:
+            messages.append(types.Content(role="user", parts=function_results))   
+        if response.function_calls == None:
+            return
+    print("Agent did not finish within max iterations")
+    sys.exit(1)
 
 def generate_content(client, messages, verbose):    
     response = client.models.generate_content(
@@ -60,9 +67,12 @@ def generate_content(client, messages, verbose):
             function_results.append(function_call_result.parts[0])
             if verbose:
                 print(f"-> {function_call_result.parts[0].function_response.response}")
+           
     else:
         print("Response:")
         print(response.text)
+        
+    return response, function_results 
     
   
 
